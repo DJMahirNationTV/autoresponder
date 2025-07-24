@@ -2,9 +2,11 @@
   "schemaVersion": 1,
   "id": "autoresponder_v3",
   "version": "${version}",
-  "name": "autoresponder_v3",
+  "name": "AutoResponder",
   "description": "",
-  "authors": [],
+  "authors": [
+    "DJMahirNationTV Production"
+  ],
   "contact": {},
   "license": "All-Rights-Reserved",
   "icon": "assets/autoresponder_v3/icon.png",

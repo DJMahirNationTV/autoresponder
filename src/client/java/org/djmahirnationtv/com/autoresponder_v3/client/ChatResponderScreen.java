@@ -11,13 +11,13 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 
-import java.io.*;
+import java.io.IOException;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 public class ChatResponderScreen extends Screen {
     private TextFieldWidget triggerField;
@@ -26,6 +26,7 @@ public class ChatResponderScreen extends Screen {
     private ButtonWidget regexCheckbox;
     private boolean regexChecked = false;
     private static final Map<String, Boolean> triggerEnabledMap = new ConcurrentHashMap<>();
+    private static final Map<String, Boolean> triggerRegexMap = new ConcurrentHashMap<>();
     private int scrollOffset = 0;
     private static final int MAX_VISIBLE = 6;
     private static final Path SAVE_FILE = Path.of("config/autoresponder_triggers.json");
@@ -49,6 +50,7 @@ public class ChatResponderScreen extends Screen {
         responseField = new TextFieldWidget(textRenderer, centerX - 90, y + 25, 180, 20, Text.of(""));
         responseField.setEditable(true);
         responseField.setPlaceholder(Text.of("Enter a response..."));
+        responseField.setMaxLength(255);
 
         regexCheckbox = ButtonWidget.builder(Text.of((regexChecked ? "☑ " : "☐ ") + "Enable Regex"), btn -> {
             regexChecked = !regexChecked;
@@ -61,6 +63,7 @@ public class ChatResponderScreen extends Screen {
             if (!trigger.isEmpty() && !response.isEmpty()) {
                 ChatResponder.getTriggers().put(trigger, response);
                 triggerEnabledMap.put(trigger, true);
+                triggerRegexMap.put(trigger, regexChecked);
                 triggerField.setText("");
                 responseField.setText("");
                 regexChecked = false;
@@ -83,7 +86,8 @@ public class ChatResponderScreen extends Screen {
             String trigger = entry.getKey();
             String response = entry.getValue();
             boolean enabled = triggerEnabledMap.getOrDefault(trigger, true);
-            String text = trigger + " -> " + response + (enabled ? "" : " (Disabled)");
+            boolean regex = triggerRegexMap.getOrDefault(trigger, false);
+            String text = (regex ? "/" : "") + trigger + (regex ? "/" : "") + " -> " + response + (enabled ? "" : " (Disabled)");
 
             final ButtonWidget triggerButton = ButtonWidget.builder(Text.literal(text), btn -> {})
                     .position(centerX - 90, listY).size(180, 20).build();
@@ -94,6 +98,7 @@ public class ChatResponderScreen extends Screen {
                     if (confirmed) {
                         ChatResponder.getTriggers().remove(trigger);
                         triggerEnabledMap.remove(trigger);
+                        triggerRegexMap.remove(trigger);
                         saveTriggers();
                     }
                     MinecraftClient.getInstance().setScreen(this);
@@ -148,10 +153,10 @@ public class ChatResponderScreen extends Screen {
     private void saveTriggers() {
         try {
             Files.createDirectories(SAVE_FILE.getParent());
-            Map<String, Object> data = new LinkedHashMap<>();
+            Map<String, Object[]> data = new LinkedHashMap<>();
             for (Map.Entry<String, String> entry : ChatResponder.getTriggers().entrySet()) {
                 String key = entry.getKey();
-                data.put(key, new String[]{entry.getValue(), triggerEnabledMap.getOrDefault(key, true).toString()});
+                data.put(key, new Object[]{entry.getValue(), triggerEnabledMap.getOrDefault(key, true), triggerRegexMap.getOrDefault(key, false)});
             }
             String json = new Gson().toJson(data);
             Files.writeString(SAVE_FILE, json);
@@ -164,16 +169,39 @@ public class ChatResponderScreen extends Screen {
         if (!Files.exists(SAVE_FILE)) return;
         try {
             String json = Files.readString(SAVE_FILE);
-            Type type = new TypeToken<Map<String, String[]>>() {}.getType();
-            Map<String, String[]> data = new Gson().fromJson(json, type);
-            for (Map.Entry<String, String[]> entry : data.entrySet()) {
+            Type type = new TypeToken<Map<String, Object[]>>() {}.getType();
+            Map<String, Object[]> data = new Gson().fromJson(json, type);
+            for (Map.Entry<String, Object[]> entry : data.entrySet()) {
                 String trigger = entry.getKey();
-                String[] val = entry.getValue();
-                ChatResponder.getTriggers().put(trigger, val[0]);
-                triggerEnabledMap.put(trigger, Boolean.parseBoolean(val[1]));
+                Object[] val = entry.getValue();
+                if (val.length < 2) continue;
+                ChatResponder.getTriggers().put(trigger, (String) val[0]);
+                triggerEnabledMap.put(trigger, Boolean.parseBoolean(val[1].toString()));
+                boolean regex = val.length >= 3 && Boolean.parseBoolean(val[2].toString());
+                triggerRegexMap.put(trigger, regex);
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public static String stripColorCodes(String message) {
+        return message.replaceAll("§[0-9a-fk-or]", "");
+    }
+
+    public static boolean shouldTriggerRespond(String rawMessage) {
+        String cleanMsg = stripColorCodes(rawMessage);
+        for (Map.Entry<String, String> entry : ChatResponder.getTriggers().entrySet()) {
+            String trigger = entry.getKey();
+            boolean enabled = triggerEnabledMap.getOrDefault(trigger, true);
+            boolean regex = triggerRegexMap.getOrDefault(trigger, false);
+            if (!enabled) continue;
+            if (regex) {
+                if (Pattern.compile(trigger).matcher(cleanMsg).find()) return true;
+            } else {
+                if (cleanMsg.contains(trigger)) return true;
+            }
+        }
+        return false;
     }
 }

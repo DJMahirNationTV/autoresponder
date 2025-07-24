@@ -4,7 +4,9 @@
   "version": "1.0.0",
   "name": "autoresponder_v3",
   "description": "",
-  "authors": [],
+  "authors": [
+    "DJMahirNationTV Production"
+  ],
   "contact": {},
   "license": "All-Rights-Reserved",
   "icon": "assets/autoresponder_v3/icon.png",
