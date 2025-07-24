@@ -1,14 +1,21 @@
 package org.djmahirnationtv.com.autoresponder_v3.client;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ConfirmScreen;
+import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.text.Text;
+
+import java.io.*;
+import java.lang.reflect.Type;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -16,14 +23,16 @@ public class ChatResponderScreen extends Screen {
     private TextFieldWidget triggerField;
     private TextFieldWidget responseField;
     private ButtonWidget addButton;
-    private ClickableWidget regexCheckbox;
+    private ButtonWidget regexCheckbox;
     private boolean regexChecked = false;
     private static final Map<String, Boolean> triggerEnabledMap = new ConcurrentHashMap<>();
     private int scrollOffset = 0;
     private static final int MAX_VISIBLE = 6;
+    private static final Path SAVE_FILE = Path.of("config/autoresponder_triggers.json");
 
     public ChatResponderScreen() {
         super(Text.of("Chat Responder Config"));
+        loadTriggers();
     }
 
     @Override
@@ -39,7 +48,7 @@ public class ChatResponderScreen extends Screen {
 
         responseField = new TextFieldWidget(textRenderer, centerX - 90, y + 25, 180, 20, Text.of(""));
         responseField.setEditable(true);
-        responseField.setPlaceholder(Text.of("Enter the response..."));
+        responseField.setPlaceholder(Text.of("Enter a response..."));
 
         regexCheckbox = ButtonWidget.builder(Text.of((regexChecked ? "☑ " : "☐ ") + "Enable Regex"), btn -> {
             regexChecked = !regexChecked;
@@ -55,6 +64,7 @@ public class ChatResponderScreen extends Screen {
                 triggerField.setText("");
                 responseField.setText("");
                 regexChecked = false;
+                saveTriggers();
                 init();
             }
         }).position(centerX - 90, y + 75).size(180, 20).build();
@@ -75,41 +85,31 @@ public class ChatResponderScreen extends Screen {
             boolean enabled = triggerEnabledMap.getOrDefault(trigger, true);
             String text = trigger + " -> " + response + (enabled ? "" : " (Disabled)");
 
-            final ButtonWidget[] triggerButton = new ButtonWidget[1];
-            final ButtonWidget[] deleteButton = new ButtonWidget[1];
-            final ButtonWidget[] disableButton = new ButtonWidget[1];
-            final ButtonWidget[] editButton = new ButtonWidget[1];
+            final ButtonWidget triggerButton = ButtonWidget.builder(Text.literal(text), btn -> {})
+                    .position(centerX - 90, listY).size(180, 20).build();
+            triggerButton.active = false;
 
-            triggerButton[0] = ButtonWidget.builder(Text.literal(text), btn -> {}).position(centerX - 90, listY).size(180, 20).build();
-            triggerButton[0].active = false;
-
-            deleteButton[0] = ButtonWidget.builder(Text.of("✕"), btn -> {
+            final ButtonWidget deleteButton = ButtonWidget.builder(Text.of("✕"), btn -> {
                 MinecraftClient.getInstance().setScreen(new ConfirmScreen(confirmed -> {
                     if (confirmed) {
                         ChatResponder.getTriggers().remove(trigger);
                         triggerEnabledMap.remove(trigger);
+                        saveTriggers();
                     }
                     MinecraftClient.getInstance().setScreen(this);
                     init();
                 }, Text.of("Are you sure?"), Text.of("Do you really want to delete this trigger?")));
             }).position(centerX + 95, listY).size(20, 20).build();
 
-            disableButton[0] = ButtonWidget.builder(Text.of(enabled ? "❚❚" : "▶"), btn -> {
+            final ButtonWidget disableButton = ButtonWidget.builder(Text.of(enabled ? "❚❚" : "▶"), btn -> {
                 triggerEnabledMap.put(trigger, !enabled);
+                saveTriggers();
                 init();
             }).position(centerX + 120, listY).size(20, 20).build();
 
-            editButton[0] = ButtonWidget.builder(Text.of("✎"), btn -> {
-                triggerField.setText(trigger);
-                responseField.setText(response);
-                ChatResponder.getTriggers().remove(trigger);
-                init();
-            }).position(centerX + 145, listY).size(20, 20).build();
-
-            addDrawableChild(triggerButton[0]);
-            addDrawableChild(deleteButton[0]);
-            addDrawableChild(disableButton[0]);
-            addDrawableChild(editButton[0]);
+            addDrawableChild(triggerButton);
+            addDrawableChild(deleteButton);
+            addDrawableChild(disableButton);
 
             listY += 25;
         }
@@ -131,14 +131,8 @@ public class ChatResponderScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        renderBackground(context, mouseX, mouseY, delta);
-        int panelWidth = 300;
-        int panelHeight = 300;
-        int x = (width - panelWidth) / 2;
-        int y = (height - panelHeight) / 2;
-        context.fill(x, y, x + panelWidth, y + panelHeight, 0xCC000000);
         super.render(context, mouseX, mouseY, delta);
-        drawCenteredText(context, textRenderer, title, width / 2, y + 8, 0xFFFFFF);
+        drawCenteredText(context, textRenderer, title, width / 2, height / 4 - 20, 0xFFFFFF);
     }
 
     private void drawCenteredText(DrawContext context, TextRenderer renderer, Text text, int x, int y, int color) {
@@ -149,5 +143,37 @@ public class ChatResponderScreen extends Screen {
     @Override
     public boolean shouldPause() {
         return false;
+    }
+
+    private void saveTriggers() {
+        try {
+            Files.createDirectories(SAVE_FILE.getParent());
+            Map<String, Object> data = new LinkedHashMap<>();
+            for (Map.Entry<String, String> entry : ChatResponder.getTriggers().entrySet()) {
+                String key = entry.getKey();
+                data.put(key, new String[]{entry.getValue(), triggerEnabledMap.getOrDefault(key, true).toString()});
+            }
+            String json = new Gson().toJson(data);
+            Files.writeString(SAVE_FILE, json);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void loadTriggers() {
+        if (!Files.exists(SAVE_FILE)) return;
+        try {
+            String json = Files.readString(SAVE_FILE);
+            Type type = new TypeToken<Map<String, String[]>>() {}.getType();
+            Map<String, String[]> data = new Gson().fromJson(json, type);
+            for (Map.Entry<String, String[]> entry : data.entrySet()) {
+                String trigger = entry.getKey();
+                String[] val = entry.getValue();
+                ChatResponder.getTriggers().put(trigger, val[0]);
+                triggerEnabledMap.put(trigger, Boolean.parseBoolean(val[1]));
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
