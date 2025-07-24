@@ -4,32 +4,52 @@ import net.minecraft.client.MinecraftClient;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 public class ChatResponder {
     private static final Map<String, String> triggers = new ConcurrentHashMap<>();
+
     static {
-        assert MinecraftClient.getInstance().player != null;
         triggers.put("-> to you |", "Hi there!");
     }
 
     public static void onChat(String msg, String name) {
-        assert MinecraftClient.getInstance().player != null;
-        String myName = MinecraftClient.getInstance().player.getName().getString();
-        if (name.equals(myName)) return; // Ignore own messages
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player == null) return;
 
-        triggers.forEach((t, r) -> {
-            if (msg.contains(t.toLowerCase())) reply(r);
-        });
+        String myName = client.player.getName().getString();
+        if (name.equals(myName)) return;
+
+        String cleanMsg = ChatResponderScreen.stripColorCodes(msg);
+
+        for (Map.Entry<String, String> entry : triggers.entrySet()) {
+            String trigger = entry.getKey();
+            boolean enabled = ChatResponderScreen.getTriggerEnabled(trigger);
+            boolean regex = ChatResponderScreen.getTriggerRegex(trigger);
+            if (!enabled) continue;
+
+            if (regex) {
+                if (Pattern.compile(trigger).matcher(cleanMsg).find()) {
+                    reply(entry.getValue());
+                    return;
+                }
+            } else {
+                if (cleanMsg.contains(trigger)) {
+                    reply(entry.getValue());
+                    return;
+                }
+            }
+        }
     }
 
     public static void reply(String resp) {
-        assert MinecraftClient.getInstance().player != null;
-        MinecraftClient.getInstance().player.networkHandler.sendChatMessage(resp);
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player != null) {
+            client.player.networkHandler.sendChatMessage(resp);
+        }
     }
 
     public static Map<String, String> getTriggers() {
         return triggers;
     }
-
-    // Additional methods to register/remove triggers programmatically
 }

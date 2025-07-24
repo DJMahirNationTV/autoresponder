@@ -204,4 +204,12 @@ public class ChatResponderScreen extends Screen {
         }
         return false;
     }
+    public static boolean getTriggerEnabled(String trigger) {
+        return triggerEnabledMap.getOrDefault(trigger, true);
+    }
+
+    public static boolean getTriggerRegex(String trigger) {
+        return triggerRegexMap.getOrDefault(trigger, false);
+    }
+
 }
