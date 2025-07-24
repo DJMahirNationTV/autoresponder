@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "autoresponder_v3",
+  "version": "1.0.0",
+  "name": "autoresponder_v3",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "icon": "assets/autoresponder_v3/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "fabric-datagen": [
+      "org.djmahirnationtv.com.autoresponder_v3.client.Autoresponder_v3DataGenerator"
+    ],
+    "client": [
+      "org.djmahirnationtv.com.autoresponder_v3.client.Autoresponder_v3Client"
+    ],
+    "main": [
+      "org.djmahirnationtv.com.autoresponder_v3.Autoresponder_v3"
+    ]
+  },
+  "mixins": [
+    "autoresponder_v3.mixins.json",
+    {
+      "config": "autoresponder_v3.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=0.15.11",
+    "fabric": "*",
+    "fabric-api": "*",
+    "java": ">=21",
+    "fabric-key-binding-api-v1": "*",
+    "minecraft": "1.21"
+  }
+}

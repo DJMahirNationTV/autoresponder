@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "package": "org.djmahirnationtv.com.autoresponder_v3.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "client": [
+    "OnChatMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

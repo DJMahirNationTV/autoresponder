@@ -1,0 +1,14 @@
+{
+  "mappings": {
+    "org/djmahirnationtv/com/autoresponder_v3/mixin/OnChatMixin": {
+      "onChatMessage": "Lnet/minecraft/class_7594;method_45748(Lnet/minecraft/class_7471;Lcom/mojang/authlib/GameProfile;Lnet/minecraft/class_2556$class_7602;)V"
+    }
+  },
+  "data": {
+    "named:intermediary": {
+      "org/djmahirnationtv/com/autoresponder_v3/mixin/OnChatMixin": {
+        "onChatMessage": "Lnet/minecraft/class_7594;method_45748(Lnet/minecraft/class_7471;Lcom/mojang/authlib/GameProfile;Lnet/minecraft/class_2556$class_7602;)V"
+      }
+    }
+  }
+}
