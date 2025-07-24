@@ -9,7 +9,7 @@ public class ChatResponder {
     private static final Map<String, String> triggers = new ConcurrentHashMap<>();
     static {
         assert MinecraftClient.getInstance().player != null;
-        triggers.put("hello", "Hi there !");
+        triggers.put("-> to you |", "Hi there!");
     }
 
     public static void onChat(String msg, String name) {
