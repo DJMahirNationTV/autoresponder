@@ -13,6 +13,10 @@ public class ChatResponder {
     }
 
     public static void onChat(String msg, String name) {
+        assert MinecraftClient.getInstance().player != null;
+        String myName = MinecraftClient.getInstance().player.getName().getString();
+        if (name.equals(myName)) return; // Ignore own messages
+
         triggers.forEach((t, r) -> {
             if (msg.contains(t.toLowerCase())) reply(r);
         });

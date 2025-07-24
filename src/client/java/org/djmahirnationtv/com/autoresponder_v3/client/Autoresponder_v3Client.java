@@ -19,12 +19,9 @@ public class Autoresponder_v3Client implements ClientModInitializer {
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (toggleKey.wasPressed()) {
-                ChatResponderConfig.enabled = !ChatResponderConfig.enabled;
-                assert client.player != null;
-                client.player.sendMessage(
-                        Text.of("AutoResponder " + (ChatResponderConfig.enabled ? "Enabled" : "Disabled")),
-                        false
-                );
+                if (client.currentScreen == null) {
+                    client.setScreen(new ChatResponderScreen());
+                }
             }
         });
     }
