@@ -8,7 +8,10 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ConfirmScreen;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.text.ClickEvent;
+import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 
 import java.io.IOException;
@@ -138,7 +141,15 @@ public class ChatResponderScreen extends Screen {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
         drawCenteredText(context, textRenderer, title, width / 2, height / 4 - 20, 0xFFFFFF);
-        drawCenteredText(context, textRenderer, Text.literal("Developed by DJMahirNationTV"), width / 2, height / 4 - 5, 0xAAAAAA);
+        context.getMatrices().push();
+        context.getMatrices().scale(0.75f, 0.75f, 1f);
+        int scaledX = (int)((width / 2) / 0.75f);
+        int offsetYvar = 7;
+        int scaledY = (int)((height / 4 - 2 - offsetYvar) / 0.75f);
+        Text clickable = Text.literal("Developed by DJMahirNationTV")
+                .setStyle(Style.EMPTY.withColor(0xAAAAAA).withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, "https://djmahirnationtv.com")));
+        drawCenteredText(context, textRenderer, clickable, scaledX, scaledY, 0xAAAAAA);
+        context.getMatrices().pop();
     }
 
     private void drawCenteredText(DrawContext context, TextRenderer renderer, Text text, int x, int y, int color) {
@@ -205,6 +216,7 @@ public class ChatResponderScreen extends Screen {
         }
         return false;
     }
+
     public static boolean getTriggerEnabled(String trigger) {
         return triggerEnabledMap.getOrDefault(trigger, true);
     }
@@ -212,5 +224,4 @@ public class ChatResponderScreen extends Screen {
     public static boolean getTriggerRegex(String trigger) {
         return triggerRegexMap.getOrDefault(trigger, false);
     }
-
 }
