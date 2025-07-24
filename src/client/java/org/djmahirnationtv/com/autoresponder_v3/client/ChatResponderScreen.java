@@ -138,6 +138,7 @@ public class ChatResponderScreen extends Screen {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
         drawCenteredText(context, textRenderer, title, width / 2, height / 4 - 20, 0xFFFFFF);
+        drawCenteredText(context, textRenderer, Text.literal("Developed by DJMahirNationTV"), width / 2, height / 4 - 5, 0xAAAAAA);
     }
 
     private void drawCenteredText(DrawContext context, TextRenderer renderer, Text text, int x, int y, int color) {
