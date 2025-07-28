@@ -9,10 +9,6 @@ import java.util.regex.Pattern;
 public class ChatResponder {
     private static final Map<String, String> triggers = new ConcurrentHashMap<>();
 
-    static {
-        triggers.put("-> to you |", "Hi there!");
-    }
-
     public static void onChat(String msg, String name) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null) return;

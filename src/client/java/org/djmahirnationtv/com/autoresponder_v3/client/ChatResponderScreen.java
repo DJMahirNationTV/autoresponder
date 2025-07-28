@@ -7,8 +7,8 @@ import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ConfirmScreen;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.tooltip.Tooltip;
 import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.ClickEvent;
 import net.minecraft.text.Style;
@@ -30,7 +30,7 @@ public class ChatResponderScreen extends Screen {
     private boolean regexChecked = false;
     private static final Map<String, Boolean> triggerEnabledMap = new ConcurrentHashMap<>();
     private static final Map<String, Boolean> triggerRegexMap = new ConcurrentHashMap<>();
-    private int scrollOffset = 0;
+    private int currentPage = 0;
     private static final int MAX_VISIBLE = 6;
     private static final Path SAVE_FILE = Path.of("config/autoresponder_triggers.json");
 
@@ -48,11 +48,11 @@ public class ChatResponderScreen extends Screen {
 
         triggerField = new TextFieldWidget(textRenderer, centerX - 90, y, 180, 20, Text.of(""));
         triggerField.setEditable(true);
-        triggerField.setPlaceholder(Text.of("Enter a word..."));
+        triggerField.setPlaceholder(Text.literal("Enter a word...").setStyle(Style.EMPTY.withColor(0x555555)));
 
         responseField = new TextFieldWidget(textRenderer, centerX - 90, y + 25, 180, 20, Text.of(""));
         responseField.setEditable(true);
-        responseField.setPlaceholder(Text.of("Enter a response..."));
+        responseField.setPlaceholder(Text.literal("Enter a response...").setStyle(Style.EMPTY.withColor(0x555555)));
         responseField.setMaxLength(255);
 
         regexCheckbox = ButtonWidget.builder(Text.of((regexChecked ? "☑ " : "☐ ") + "Enable Regex"), btn -> {
@@ -80,12 +80,13 @@ public class ChatResponderScreen extends Screen {
         addDrawableChild(regexCheckbox);
         addDrawableChild(addButton);
 
-        int listY = y + 110;
-        int index = 0;
-        for (Map.Entry<String, String> entry : ChatResponder.getTriggers().entrySet()) {
-            if (index++ < scrollOffset) continue;
-            if (index > scrollOffset + MAX_VISIBLE) break;
+        List<Map.Entry<String, String>> entries = new ArrayList<>(ChatResponder.getTriggers().entrySet());
+        int start = currentPage * MAX_VISIBLE;
+        int end = Math.min(start + MAX_VISIBLE, entries.size());
 
+        int listY = y + 110;
+        for (int i = start; i < end; i++) {
+            Map.Entry<String, String> entry = entries.get(i);
             String trigger = entry.getKey();
             String response = entry.getValue();
             boolean enabled = triggerEnabledMap.getOrDefault(trigger, true);
@@ -93,7 +94,9 @@ public class ChatResponderScreen extends Screen {
             String text = (regex ? "/" : "") + trigger + (regex ? "/" : "") + " -> " + response + (enabled ? "" : " (Disabled)");
 
             final ButtonWidget triggerButton = ButtonWidget.builder(Text.literal(text), btn -> {})
-                    .position(centerX - 90, listY).size(180, 20).build();
+                    .position(centerX - 90, listY).size(180, 20)
+                    .tooltip(Tooltip.of(Text.of(trigger + " -> " + response)))
+                    .build();
             triggerButton.active = false;
 
             final ButtonWidget deleteButton = ButtonWidget.builder(Text.of("✕"), btn -> {
@@ -122,19 +125,24 @@ public class ChatResponderScreen extends Screen {
             listY += 25;
         }
 
-        if (scrollOffset > 0) {
-            addDrawableChild(ButtonWidget.builder(Text.of("↑"), b -> {
-                scrollOffset = Math.max(0, scrollOffset - 1);
+        int totalPages = (int) Math.ceil((double) entries.size() / MAX_VISIBLE);
+
+        if (currentPage > 0) {
+            addDrawableChild(ButtonWidget.builder(Text.of("← Prev"), b -> {
+                currentPage--;
                 init();
-            }).position(centerX - 120, y + 110).size(20, 20).build());
+            }).position(centerX - 90, listY).size(80, 20).build());
         }
 
-        if (ChatResponder.getTriggers().size() > scrollOffset + MAX_VISIBLE) {
-            addDrawableChild(ButtonWidget.builder(Text.of("↓"), b -> {
-                scrollOffset++;
+        if (currentPage < totalPages - 1) {
+            addDrawableChild(ButtonWidget.builder(Text.of("Next →"), b -> {
+                currentPage++;
                 init();
-            }).position(centerX + 170, y + 110 + MAX_VISIBLE * 25).size(20, 20).build());
+            }).position(centerX + 10, listY).size(80, 20).build());
         }
+
+        String pageText = "Page " + (currentPage + 1) + " / " + Math.max(1, totalPages);
+        addDrawableChild(ButtonWidget.builder(Text.literal(pageText), b -> {}).position(centerX - 40, listY + 25).size(80, 20).build());
     }
 
     @Override
