@@ -22,18 +22,19 @@ import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 public class ChatResponderScreen extends Screen {
     private TextFieldWidget triggerField;
     private TextFieldWidget responseField;
-    private TextFieldWidget webhookField;
-    private ButtonWidget addButton;
+    private TextFieldWidget delayField;
     private ButtonWidget regexCheckbox;
     private ButtonWidget mentionCheckbox;
     private ButtonWidget soundCheckbox;
+    private ButtonWidget addButton;
     private boolean regexChecked = false;
+    private boolean mentionChecked = false;
+    private boolean soundChecked = false;
     private int currentPage = 0;
     private static final int MAX_VISIBLE = 6;
     private static final Path SAVE_FILE = Path.of("config/autoresponder_triggers.json");
@@ -57,56 +58,59 @@ public class ChatResponderScreen extends Screen {
         responseField = new TextFieldWidget(textRenderer, centerX - 90, y + 25, 180, 20, Text.of(""));
         responseField.setEditable(true);
         responseField.setPlaceholder(Text.literal("Enter a response...").setStyle(Style.EMPTY.withColor(0x555555)));
-        responseField.setMaxLength(255);
+        responseField.setMaxLength(500);
+
+        delayField = new TextFieldWidget(textRenderer, centerX - 90, y + 50, 180, 20, Text.of("0"));
+        delayField.setEditable(true);
+        delayField.setPlaceholder(Text.literal("Delay in seconds...").setStyle(Style.EMPTY.withColor(0x555555)));
 
         regexCheckbox = ButtonWidget.builder(Text.of((regexChecked ? "☑ " : "☐ ") + "Enable Regex"), btn -> {
             regexChecked = !regexChecked;
             init();
-        }).position(centerX - 90, y + 50).size(180, 20).build();
+        }).position(centerX - 90, y + 75).size(180, 20).build();
+
+        mentionCheckbox = ButtonWidget.builder(Text.of((mentionChecked ? "☑ " : "☐ ") + "Mention Only"), b -> {
+            mentionChecked = !mentionChecked;
+            init();
+        }).position(centerX - 90, y + 100).size(180, 20).build();
+
+        soundCheckbox = ButtonWidget.builder(Text.of((soundChecked ? "☑ " : "☐ ") + "Sound Feedback"), b -> {
+            soundChecked = !soundChecked;
+            init();
+        }).position(centerX - 90, y + 125).size(180, 20).build();
 
         addButton = ButtonWidget.builder(Text.of("+ Add Trigger"), button -> {
             String trigger = triggerField.getText().trim();
             String response = responseField.getText().trim();
+            int delay = 0;
+            try {
+                delay = (int) Double.parseDouble(delayField.getText().trim());
+            } catch (NumberFormatException ignored) {}
             if (!trigger.isEmpty() && !response.isEmpty()) {
                 ChatResponder.getTriggers().put(trigger, response);
                 ChatResponder.setTriggerEnabled(trigger, true);
                 ChatResponder.setTriggerRegex(trigger, regexChecked);
+                ChatResponder.setTriggerMentionOnly(trigger, mentionChecked);
+                ChatResponder.setTriggerSound(trigger, soundChecked);
+                ChatResponder.setTriggerDelay(trigger, delay);
                 triggerField.setText("");
                 responseField.setText("");
+                delayField.setText("0");
                 regexChecked = false;
+                mentionChecked = false;
+                soundChecked = false;
                 saveTriggers();
                 init();
             }
-        }).position(centerX - 90, y + 75).size(180, 20).build();
-
-        mentionCheckbox = ButtonWidget.builder(Text.of((ChatResponder.mentionOnly ? "☑ " : "☐ ") + "Mention Only"), b -> {
-            ChatResponder.mentionOnly = !ChatResponder.mentionOnly;
-            ChatResponder.saveGlobalSettings();
-            init();
-        }).position(centerX - 90, y + 100).size(180, 20).build();
-
-        soundCheckbox = ButtonWidget.builder(Text.of((ChatResponder.soundFeedbackEnabled ? "☑ " : "☐ ") + "Sound Feedback"), b -> {
-            ChatResponder.soundFeedbackEnabled = !ChatResponder.soundFeedbackEnabled;
-            ChatResponder.saveGlobalSettings();
-            init();
-        }).position(centerX - 90, y + 125).size(180, 20).build();
-
-        webhookField = new TextFieldWidget(textRenderer, centerX - 90, y + 150, 180, 20, Text.of(""));
-        webhookField.setText(ChatResponder.webhookUrl);
-        webhookField.setPlaceholder(Text.literal("Discord Webhook URL").setStyle(Style.EMPTY.withColor(0x555555)));
-        webhookField.setChangedListener(value -> {
-            ChatResponder.webhookUrl = value.trim();
-            ChatResponder.saveGlobalSettings();
-        });
-        webhookField.setMaxLength(500);
+        }).position(centerX - 90, y + 150).size(180, 20).build();
 
         addDrawableChild(triggerField);
         addDrawableChild(responseField);
+        addDrawableChild(delayField);
         addDrawableChild(regexCheckbox);
-        addDrawableChild(addButton);
         addDrawableChild(mentionCheckbox);
         addDrawableChild(soundCheckbox);
-        addDrawableChild(webhookField);
+        addDrawableChild(addButton);
 
         List<Map.Entry<String, String>> entries = new ArrayList<>(ChatResponder.getTriggers().entrySet());
         int start = currentPage * MAX_VISIBLE;
@@ -203,7 +207,14 @@ public class ChatResponderScreen extends Screen {
             Map<String, Object[]> data = new LinkedHashMap<>();
             for (Map.Entry<String, String> entry : ChatResponder.getTriggers().entrySet()) {
                 String key = entry.getKey();
-                data.put(key, new Object[]{entry.getValue(), ChatResponder.getTriggerEnabled(key), ChatResponder.getTriggerRegex(key)});
+                data.put(key, new Object[]{
+                        entry.getValue(),
+                        ChatResponder.getTriggerEnabled(key),
+                        ChatResponder.getTriggerRegex(key),
+                        ChatResponder.getTriggerMentionOnly(key),
+                        ChatResponder.getTriggerSound(key),
+                        ChatResponder.getTriggerDelays().getOrDefault(key, 0)
+                });
             }
             String json = new Gson().toJson(data);
             Files.writeString(SAVE_FILE, json);
@@ -226,13 +237,16 @@ public class ChatResponderScreen extends Screen {
                     ChatResponder.getTriggers().put(trigger, (String) val[0]);
                     ChatResponder.setTriggerEnabled(trigger, Boolean.parseBoolean(val[1].toString()));
                     boolean regex = val.length >= 3 && Boolean.parseBoolean(val[2].toString());
+                    boolean mentionOnly = val.length >= 4 && Boolean.parseBoolean(val[3].toString());
+                    boolean sound = val.length >= 5 && Boolean.parseBoolean(val[4].toString());
+                    int delay = val.length >= 6 ? (int) Double.parseDouble(val[5].toString()) : 0;
                     ChatResponder.setTriggerRegex(trigger, regex);
+                    ChatResponder.setTriggerMentionOnly(trigger, mentionOnly);
+                    ChatResponder.setTriggerSound(trigger, sound);
+                    ChatResponder.setTriggerDelay(trigger, delay);
                 }
             }
-        } catch (JsonSyntaxException jse) {
-            System.err.println("⚠ Failed to parse triggers JSON. File may be corrupted or format changed.");
-            jse.printStackTrace();
-        } catch (IOException e) {
+        } catch (JsonSyntaxException | IOException e) {
             e.printStackTrace();
         }
     }
@@ -255,13 +269,5 @@ public class ChatResponderScreen extends Screen {
             }
         }
         return false;
-    }
-
-    public static boolean getTriggerEnabled(String trigger) {
-        return ChatResponder.getTriggerEnabled(trigger);
-    }
-
-    public static boolean getTriggerRegex(String trigger) {
-        return ChatResponder.getTriggerRegex(trigger);
     }
 }
