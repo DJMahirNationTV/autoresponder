@@ -1,6 +1,9 @@
+// File: java/org/djmahirnationtv/com/autoresponder_v3/client/ChatResponderScreen.java
+
 package org.djmahirnationtv.com.autoresponder_v3.client;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
@@ -25,11 +28,12 @@ import java.util.regex.Pattern;
 public class ChatResponderScreen extends Screen {
     private TextFieldWidget triggerField;
     private TextFieldWidget responseField;
+    private TextFieldWidget webhookField;
     private ButtonWidget addButton;
     private ButtonWidget regexCheckbox;
+    private ButtonWidget mentionCheckbox;
+    private ButtonWidget soundCheckbox;
     private boolean regexChecked = false;
-    private static final Map<String, Boolean> triggerEnabledMap = new ConcurrentHashMap<>();
-    private static final Map<String, Boolean> triggerRegexMap = new ConcurrentHashMap<>();
     private int currentPage = 0;
     private static final int MAX_VISIBLE = 6;
     private static final Path SAVE_FILE = Path.of("config/autoresponder_triggers.json");
@@ -65,8 +69,8 @@ public class ChatResponderScreen extends Screen {
             String response = responseField.getText().trim();
             if (!trigger.isEmpty() && !response.isEmpty()) {
                 ChatResponder.getTriggers().put(trigger, response);
-                triggerEnabledMap.put(trigger, true);
-                triggerRegexMap.put(trigger, regexChecked);
+                ChatResponder.setTriggerEnabled(trigger, true);
+                ChatResponder.setTriggerRegex(trigger, regexChecked);
                 triggerField.setText("");
                 responseField.setText("");
                 regexChecked = false;
@@ -75,22 +79,46 @@ public class ChatResponderScreen extends Screen {
             }
         }).position(centerX - 90, y + 75).size(180, 20).build();
 
+        mentionCheckbox = ButtonWidget.builder(Text.of((ChatResponder.mentionOnly ? "☑ " : "☐ ") + "Mention Only"), b -> {
+            ChatResponder.mentionOnly = !ChatResponder.mentionOnly;
+            ChatResponder.saveGlobalSettings();
+            init();
+        }).position(centerX - 90, y + 100).size(180, 20).build();
+
+        soundCheckbox = ButtonWidget.builder(Text.of((ChatResponder.soundFeedbackEnabled ? "☑ " : "☐ ") + "Sound Feedback"), b -> {
+            ChatResponder.soundFeedbackEnabled = !ChatResponder.soundFeedbackEnabled;
+            ChatResponder.saveGlobalSettings();
+            init();
+        }).position(centerX - 90, y + 125).size(180, 20).build();
+
+        webhookField = new TextFieldWidget(textRenderer, centerX - 90, y + 150, 180, 20, Text.of(""));
+        webhookField.setText(ChatResponder.webhookUrl);
+        webhookField.setPlaceholder(Text.literal("Discord Webhook URL").setStyle(Style.EMPTY.withColor(0x555555)));
+        webhookField.setChangedListener(value -> {
+            ChatResponder.webhookUrl = value.trim();
+            ChatResponder.saveGlobalSettings();
+        });
+        webhookField.setMaxLength(500);
+
         addDrawableChild(triggerField);
         addDrawableChild(responseField);
         addDrawableChild(regexCheckbox);
         addDrawableChild(addButton);
+        addDrawableChild(mentionCheckbox);
+        addDrawableChild(soundCheckbox);
+        addDrawableChild(webhookField);
 
         List<Map.Entry<String, String>> entries = new ArrayList<>(ChatResponder.getTriggers().entrySet());
         int start = currentPage * MAX_VISIBLE;
         int end = Math.min(start + MAX_VISIBLE, entries.size());
 
-        int listY = y + 110;
+        int listY = y + 185;
         for (int i = start; i < end; i++) {
             Map.Entry<String, String> entry = entries.get(i);
             String trigger = entry.getKey();
             String response = entry.getValue();
-            boolean enabled = triggerEnabledMap.getOrDefault(trigger, true);
-            boolean regex = triggerRegexMap.getOrDefault(trigger, false);
+            boolean enabled = ChatResponder.getTriggerEnabled(trigger);
+            boolean regex = ChatResponder.getTriggerRegex(trigger);
             String text = (regex ? "/" : "") + trigger + (regex ? "/" : "") + " -> " + response + (enabled ? "" : " (Disabled)");
 
             final ButtonWidget triggerButton = ButtonWidget.builder(Text.literal(text), btn -> {})
@@ -103,8 +131,7 @@ public class ChatResponderScreen extends Screen {
                 MinecraftClient.getInstance().setScreen(new ConfirmScreen(confirmed -> {
                     if (confirmed) {
                         ChatResponder.getTriggers().remove(trigger);
-                        triggerEnabledMap.remove(trigger);
-                        triggerRegexMap.remove(trigger);
+                        ChatResponder.setTriggerEnabled(trigger, false);
                         saveTriggers();
                     }
                     MinecraftClient.getInstance().setScreen(this);
@@ -113,7 +140,7 @@ public class ChatResponderScreen extends Screen {
             }).position(centerX + 95, listY).size(20, 20).build();
 
             final ButtonWidget disableButton = ButtonWidget.builder(Text.of(enabled ? "❚❚" : "▶"), btn -> {
-                triggerEnabledMap.put(trigger, !enabled);
+                ChatResponder.setTriggerEnabled(trigger, !enabled);
                 saveTriggers();
                 init();
             }).position(centerX + 120, listY).size(20, 20).build();
@@ -176,7 +203,7 @@ public class ChatResponderScreen extends Screen {
             Map<String, Object[]> data = new LinkedHashMap<>();
             for (Map.Entry<String, String> entry : ChatResponder.getTriggers().entrySet()) {
                 String key = entry.getKey();
-                data.put(key, new Object[]{entry.getValue(), triggerEnabledMap.getOrDefault(key, true), triggerRegexMap.getOrDefault(key, false)});
+                data.put(key, new Object[]{entry.getValue(), ChatResponder.getTriggerEnabled(key), ChatResponder.getTriggerRegex(key)});
             }
             String json = new Gson().toJson(data);
             Files.writeString(SAVE_FILE, json);
@@ -189,17 +216,22 @@ public class ChatResponderScreen extends Screen {
         if (!Files.exists(SAVE_FILE)) return;
         try {
             String json = Files.readString(SAVE_FILE);
-            Type type = new TypeToken<Map<String, Object[]>>() {}.getType();
-            Map<String, Object[]> data = new Gson().fromJson(json, type);
-            for (Map.Entry<String, Object[]> entry : data.entrySet()) {
-                String trigger = entry.getKey();
-                Object[] val = entry.getValue();
-                if (val.length < 2) continue;
-                ChatResponder.getTriggers().put(trigger, (String) val[0]);
-                triggerEnabledMap.put(trigger, Boolean.parseBoolean(val[1].toString()));
-                boolean regex = val.length >= 3 && Boolean.parseBoolean(val[2].toString());
-                triggerRegexMap.put(trigger, regex);
+            Type mapType = new TypeToken<Map<String, Object[]>>() {}.getType();
+            Map<String, Object[]> parsed = new Gson().fromJson(json, mapType);
+            if (parsed != null) {
+                for (Map.Entry<String, Object[]> entry : parsed.entrySet()) {
+                    String trigger = entry.getKey();
+                    Object[] val = entry.getValue();
+                    if (val.length < 2) continue;
+                    ChatResponder.getTriggers().put(trigger, (String) val[0]);
+                    ChatResponder.setTriggerEnabled(trigger, Boolean.parseBoolean(val[1].toString()));
+                    boolean regex = val.length >= 3 && Boolean.parseBoolean(val[2].toString());
+                    ChatResponder.setTriggerRegex(trigger, regex);
+                }
             }
+        } catch (JsonSyntaxException jse) {
+            System.err.println("⚠ Failed to parse triggers JSON. File may be corrupted or format changed.");
+            jse.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -213,8 +245,8 @@ public class ChatResponderScreen extends Screen {
         String cleanMsg = stripColorCodes(rawMessage);
         for (Map.Entry<String, String> entry : ChatResponder.getTriggers().entrySet()) {
             String trigger = entry.getKey();
-            boolean enabled = triggerEnabledMap.getOrDefault(trigger, true);
-            boolean regex = triggerRegexMap.getOrDefault(trigger, false);
+            boolean enabled = ChatResponder.getTriggerEnabled(trigger);
+            boolean regex = ChatResponder.getTriggerRegex(trigger);
             if (!enabled) continue;
             if (regex) {
                 if (Pattern.compile(trigger).matcher(cleanMsg).find()) return true;
@@ -226,10 +258,10 @@ public class ChatResponderScreen extends Screen {
     }
 
     public static boolean getTriggerEnabled(String trigger) {
-        return triggerEnabledMap.getOrDefault(trigger, true);
+        return ChatResponder.getTriggerEnabled(trigger);
     }
 
     public static boolean getTriggerRegex(String trigger) {
-        return triggerRegexMap.getOrDefault(trigger, false);
+        return ChatResponder.getTriggerRegex(trigger);
     }
 }
