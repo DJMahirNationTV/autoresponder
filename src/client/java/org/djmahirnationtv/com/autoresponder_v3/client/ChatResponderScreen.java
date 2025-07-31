@@ -28,20 +28,26 @@ public class ChatResponderScreen extends Screen {
     private TextFieldWidget triggerField;
     private TextFieldWidget responseField;
     private TextFieldWidget delayField;
+    private TextFieldWidget webhookField;
     private ButtonWidget regexCheckbox;
     private ButtonWidget mentionCheckbox;
     private ButtonWidget soundCheckbox;
     private ButtonWidget addButton;
+    private ButtonWidget editWebhookButton;
     private boolean regexChecked = false;
     private boolean mentionChecked = false;
     private boolean soundChecked = false;
+    private boolean webhookEditable = false;
     private int currentPage = 0;
     private static final int MAX_VISIBLE = 6;
     private static final Path SAVE_FILE = Path.of("config/autoresponder_triggers.json");
+    private static final Path CONFIG_FILE = Path.of("config/autoresponder_config.json");
+    private static String webhookUrl = "";
 
     public ChatResponderScreen() {
         super(Text.of("Chat Responder Config"));
         loadTriggers();
+        loadConfig();
     }
 
     @Override
@@ -51,40 +57,53 @@ public class ChatResponderScreen extends Screen {
         int centerX = width / 2;
         int y = height / 4;
 
-        triggerField = new TextFieldWidget(textRenderer, centerX - 90, y, 180, 20, Text.of(""));
+        triggerField = new TextFieldWidget(textRenderer, centerX - 190, y, 180, 20, Text.of(""));
         triggerField.setEditable(true);
         triggerField.setPlaceholder(Text.literal("Enter a word...").setStyle(Style.EMPTY.withColor(0x555555)));
 
-        responseField = new TextFieldWidget(textRenderer, centerX - 90, y + 25, 180, 20, Text.of(""));
+        responseField = new TextFieldWidget(textRenderer, centerX - 190, y + 25, 180, 20, Text.of(""));
         responseField.setEditable(true);
         responseField.setPlaceholder(Text.literal("Enter a response...").setStyle(Style.EMPTY.withColor(0x555555)));
-        responseField.setMaxLength(500);
+        responseField.setMaxLength(255);
 
-        delayField = new TextFieldWidget(textRenderer, centerX - 90, y + 50, 180, 20, Text.of("0"));
+        delayField = new TextFieldWidget(textRenderer, centerX + 10, y, 180, 20, Text.of("0"));
         delayField.setEditable(true);
         delayField.setPlaceholder(Text.literal("Delay in seconds...").setStyle(Style.EMPTY.withColor(0x555555)));
 
+        webhookField = new TextFieldWidget(textRenderer, centerX + 10, y + 25, 180, 20, Text.of(webhookUrl));
+        webhookField.setText(webhookUrl);
+        webhookField.setMaxLength(512);
+        webhookField.setEditable(webhookEditable);
+        webhookField.setPlaceholder(Text.literal("Discord Webhook URL...").setStyle(Style.EMPTY.withColor(0x555555)));
+        webhookField.setChangedListener(text -> webhookUrl = text);
+
+        editWebhookButton = ButtonWidget.builder(Text.literal("✎"), b -> {
+            webhookEditable = !webhookEditable;
+            webhookField.setEditable(webhookEditable);
+            webhookField.setText(webhookUrl);
+        }).position(centerX + 192, y + 25).size(25, 20).build();
+
         regexCheckbox = ButtonWidget.builder(Text.of((regexChecked ? "☑ " : "☐ ") + "Enable Regex"), btn -> {
             regexChecked = !regexChecked;
-            init();
-        }).position(centerX - 90, y + 75).size(180, 20).build();
+            regexCheckbox.setMessage(Text.of((regexChecked ? "☑ " : "☐ ") + "Enable Regex"));
+        }).position(centerX - 190, y + 60).size(115, 20).build();
 
         mentionCheckbox = ButtonWidget.builder(Text.of((mentionChecked ? "☑ " : "☐ ") + "Mention Only"), b -> {
             mentionChecked = !mentionChecked;
-            init();
-        }).position(centerX - 90, y + 100).size(180, 20).build();
+            mentionCheckbox.setMessage(Text.of((mentionChecked ? "☑ " : "☐ ") + "Mention Only"));
+        }).position(centerX - 60, y + 60).size(115, 20).build();
 
         soundCheckbox = ButtonWidget.builder(Text.of((soundChecked ? "☑ " : "☐ ") + "Sound Feedback"), b -> {
             soundChecked = !soundChecked;
-            init();
-        }).position(centerX - 90, y + 125).size(180, 20).build();
+            soundCheckbox.setMessage(Text.of((soundChecked ? "☑ " : "☐ ") + "Sound Feedback"));
+        }).position(centerX + 70, y + 60).size(115, 20).build();
 
         addButton = ButtonWidget.builder(Text.of("+ Add Trigger"), button -> {
             String trigger = triggerField.getText().trim();
             String response = responseField.getText().trim();
             int delay = 0;
             try {
-                delay = (int) Double.parseDouble(delayField.getText().trim());
+                delay = Integer.parseInt(delayField.getText().trim());
             } catch (NumberFormatException ignored) {}
             if (!trigger.isEmpty() && !response.isEmpty()) {
                 ChatResponder.getTriggers().put(trigger, response);
@@ -93,6 +112,8 @@ public class ChatResponderScreen extends Screen {
                 ChatResponder.setTriggerMentionOnly(trigger, mentionChecked);
                 ChatResponder.setTriggerSound(trigger, soundChecked);
                 ChatResponder.setTriggerDelay(trigger, delay);
+                ChatResponder.webhookUrl = webhookUrl;
+                ChatResponder.saveGlobalSettings();
                 triggerField.setText("");
                 responseField.setText("");
                 delayField.setText("0");
@@ -100,13 +121,16 @@ public class ChatResponderScreen extends Screen {
                 mentionChecked = false;
                 soundChecked = false;
                 saveTriggers();
+                saveConfig();
                 init();
             }
-        }).position(centerX - 90, y + 150).size(180, 20).build();
+        }).position(centerX - 90, y + 90).size(180, 20).build();
 
         addDrawableChild(triggerField);
         addDrawableChild(responseField);
         addDrawableChild(delayField);
+        addDrawableChild(webhookField);
+        addDrawableChild(editWebhookButton);
         addDrawableChild(regexCheckbox);
         addDrawableChild(mentionCheckbox);
         addDrawableChild(soundCheckbox);
@@ -116,7 +140,7 @@ public class ChatResponderScreen extends Screen {
         int start = currentPage * MAX_VISIBLE;
         int end = Math.min(start + MAX_VISIBLE, entries.size());
 
-        int listY = y + 185;
+        int listY = y + 115;
         for (int i = start; i < end; i++) {
             Map.Entry<String, String> entry = entries.get(i);
             String trigger = entry.getKey();
@@ -219,6 +243,37 @@ public class ChatResponderScreen extends Screen {
             String json = new Gson().toJson(data);
             Files.writeString(SAVE_FILE, json);
         } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void saveConfig() {
+        try {
+            Files.createDirectories(CONFIG_FILE.getParent());
+            Map<String, String> cfg = new HashMap<>();
+            cfg.put("webhook", ChatResponder.webhookUrl);
+            Files.writeString(CONFIG_FILE, new Gson().toJson(cfg));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void loadConfig() {
+        if (!Files.exists(CONFIG_FILE)) return;
+        try {
+            String json = Files.readString(CONFIG_FILE);
+            Map<String, String> parsed = new Gson().fromJson(json, new TypeToken<Map<String, String>>() {}.getType());
+            if (parsed != null && parsed.containsKey("webhook")) {
+                webhookUrl = parsed.get("webhook");
+                ChatResponder.webhookUrl = webhookUrl;
+                ChatResponder.saveGlobalSettings();
+                if (webhookField != null) {
+                    webhookField.setText(webhookUrl);
+                    webhookField.setMaxLength(512); // 512 Chars length for webhook URL
+                }
+            }
+
+        } catch (IOException | JsonSyntaxException e) {
             e.printStackTrace();
         }
     }
