@@ -26,7 +26,6 @@ public class ChatResponder {
     private static final Map<String, Boolean> triggerSoundMap = new ConcurrentHashMap<>();
     private static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     public static String webhookUrl = "";
-
     private static final Path SETTINGS_FILE = Path.of("config/autoresponder_settings.txt");
 
     public static void onChat(String msg, String name) {
