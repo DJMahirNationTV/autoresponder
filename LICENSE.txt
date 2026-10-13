@@ -1,2 +1,12 @@
-Copyright (c) 2025 DJMahirNationTV Production
-All rights reserved.
+Copyright (c) 2026 DJMahirNationTV Production. All rights reserved.
+
+This software and its source code are the exclusive property of DJMahirNationTV Production. 
+
+Permission is hereby granted to download, clone, and view the source code for personal, non-commercial use only.
+
+You are strictly PROHIBITED from:
+1. Redistributing, selling, or modifying this software under your own name or brand.
+2. Claiming authorship, development rights, or intellectual property rights over this software.
+3. Submitting this software to any public repository, app store, or distribution channel under another identity.
+
+Any unauthorized copying, modification, or distribution will constitute an infringement of copyright.
