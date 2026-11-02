@@ -1,0 +1,14 @@
+{
+  "mappings": {
+    "org/djmahirnationtv/com/autoresponder_v3/mixin/OnChatMixin": {
+      "addMessage(Lnet/minecraft/text/Text;)V": "Lnet/minecraft/class_338;method_1812(Lnet/minecraft/class_2561;)V"
+    }
+  },
+  "data": {
+    "named:intermediary": {
+      "org/djmahirnationtv/com/autoresponder_v3/mixin/OnChatMixin": {
+        "addMessage(Lnet/minecraft/text/Text;)V": "Lnet/minecraft/class_338;method_1812(Lnet/minecraft/class_2561;)V"
+      }
+    }
+  }
+}
