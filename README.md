@@ -2,6 +2,8 @@
 
 Autoresponder is a Minecraft mod that can automatically reply when a certain chat message is triggered.
 
+> [!NOTE] The project originally grew historically over a longer period of time. Since I wanted to present it publicly on my profile, I completely cleaned up the commit history as part of a code cleanup and structuring
+
 ## Features
 
 - Detects set chat triggers
